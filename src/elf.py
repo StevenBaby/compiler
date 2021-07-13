@@ -43,13 +43,42 @@ Elf32_Versym = u32
 Elf64_Versym = u64
 
 
+class ElfIdent(ctypes.LittleEndianStructure):
+
+    _pack_ = 1
+    _fields_ = [
+        ('ei_mag', u32),
+        ('ei_class', u8),
+        ('ei_data', u8),
+        ('ei_version', u8),
+        ('ei_pad', u8),
+        ('ei_nident', u8 * 8),
+    ]
+
+    # /* Conglomeration of the identification bytes, for easy testing as a word.  */
+    ELFMAG = "\177ELF"
+    SELFMAG = 4
+
+    EI_CLASS = 4		 # File class byte index
+    ELFCLASSNONE = 0		 # Invalid class
+    ELFCLASS32 = 1		 # 32-bit objects
+    ELFCLASS64 = 2		 # 64-bit objects
+    ELFCLASSNUM = 3
+
+    EI_DATA = 5      # Data encoding byte index
+    ELFDATANONE = 0  # Invalid data encoding
+    ELFDATA2LSB = 1  # 2's complement, little endian
+    ELFDATA2MSB = 2  # 2's complement, big endian
+    ELFDATANUM = 3
+
+    EI_VERSION = 6  # File version byte index
+
+
 class Elf32_Ehdr(ctypes.LittleEndianStructure):
 
     # +(Elf.+)\t(e_.+);.*
     # ('$2', $1),
     # 用于替换 C 结构体定义的正则
-    EI_NIDENT = 16
-    ElfIdent = u8 * EI_NIDENT
 
     _pack_ = 1
     _fields_ = [
@@ -296,6 +325,11 @@ if __name__ == '__main__':
         data = file.read(sizeof(Elf32_Ehdr))
         logger.debug(data)
         header = Elf32_Ehdr.from_buffer_copy(data)
+
+    logger.debug(header.e_ident.ei_mag)
+    logger.debug(header.e_ident.ei_class)
+    logger.debug(header.e_ident.ei_version)
+    logger.debug(header.e_ident.ei_pad)
 
     assert(header.e_type == Elf32_Ehdr.ET.ET_REL)
     assert(header.e_machine == Elf32_Ehdr.EM.EM_386)
