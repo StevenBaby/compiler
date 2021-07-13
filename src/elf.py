@@ -9,6 +9,8 @@
 import ctypes
 import struct
 from ctypes import sizeof
+from typing import *
+
 from common import *
 from logger import logger
 
@@ -43,11 +45,20 @@ Elf32_Versym = u32
 Elf64_Versym = u64
 
 
-class ElfIdent(ctypes.LittleEndianStructure):
+class BaseStructure(ctypes.Structure):
 
-    _pack_ = 1
+    _pack_ = 1  # 表示对齐
+    _fields_ = []
+
+    def __dir__(self) -> Iterable[str]:
+        dirs = list(super().__dir__())
+        dirs.extend([name for name, _ in self._fields_])
+
+
+class ElfIdent(BaseStructure):
+
     _fields_ = [
-        ('ei_mag', u32),
+        ('ei_magic', u32),
         ('ei_class', u8),
         ('ei_data', u8),
         ('ei_version', u8),
@@ -74,13 +85,12 @@ class ElfIdent(ctypes.LittleEndianStructure):
     EI_VERSION = 6  # File version byte index
 
 
-class Elf32_Ehdr(ctypes.LittleEndianStructure):
+class Elf32_Ehdr(BaseStructure):
 
     # +(Elf.+)\t(e_.+);.*
     # ('$2', $1),
     # 用于替换 C 结构体定义的正则
 
-    _pack_ = 1
     _fields_ = [
         ('e_ident', ElfIdent),
         ('e_type', Elf32_Half),
@@ -315,32 +325,69 @@ class Elf32_Ehdr(ctypes.LittleEndianStructure):
         EV_NUM = 2
 
 
+class Elf32_Shdr(BaseStructure):
+
+    '''
+    typedef struct
+    {
+    Elf32_Word	sh_name;		/* Section name (string tbl index) */
+    Elf32_Word	sh_type;		/* Section type */
+    Elf32_Word	sh_flags;		/* Section flags */
+    Elf32_Addr	sh_addr;		/* Section virtual addr at execution */
+    Elf32_Off	    sh_offset;      /* Section file offset */
+    Elf32_Word	sh_size;		/* Section size in bytes */
+    Elf32_Word	sh_link;		/* Link to another section */
+    Elf32_Word	sh_info;		/* Additional section information */
+    Elf32_Word	sh_addralign;		/* Section alignment */
+    Elf32_Word	sh_entsize;		/* Entry size if section holds table */
+    } Elf32_Shdr;
+    '''
+
+    _fields_ = [
+        ('sh_name', Elf32_Word),
+        ('sh_type', Elf32_Word),
+        ('sh_flags', Elf32_Word),
+        ('sh_addr', Elf32_Addr),
+        ('sh_offset', Elf32_Off),
+        ('sh_size', Elf32_Word),
+        ('sh_link', Elf32_Word),
+        ('sh_info', Elf32_Word),
+        ('sh_addralign', Elf32_Word),
+        ('sh_entsize', Elf32_Word),
+    ]
+
+
 if __name__ == '__main__':
     import os
     dirname = os.path.dirname(__file__)
     filename = os.path.join(dirname, "../build/test.o")
     logger.debug(sizeof(Elf32_Ehdr))
 
+    shdrs = []
+
     with open(filename, 'rb') as file:
         data = file.read(sizeof(Elf32_Ehdr))
         logger.debug(data)
         header = Elf32_Ehdr.from_buffer_copy(data)
 
-    logger.debug(header.e_ident.ei_mag)
-    logger.debug(header.e_ident.ei_class)
-    logger.debug(header.e_ident.ei_version)
-    logger.debug(header.e_ident.ei_pad)
+        for name, _ in ElfIdent._fields_:
+            logger.info("%s --> %s", name, getattr(header.e_ident, name))
 
-    assert(header.e_type == Elf32_Ehdr.ET.ET_REL)
-    assert(header.e_machine == Elf32_Ehdr.EM.EM_386)
-    assert(header.e_version == Elf32_Ehdr.EV.EV_CURRENT)
-    logger.debug(header.e_entry)
-    logger.debug(header.e_phoff)
-    logger.debug(header.e_shoff)
-    logger.debug(header.e_flags)
-    logger.debug(header.e_ehsize)
-    logger.debug(header.e_phentsize)
-    logger.debug(header.e_phnum)
-    logger.debug(header.e_shentsize)
-    logger.debug(header.e_shnum)
-    logger.debug(header.e_shstrndx)
+        logger.info("----------------------------------------")
+
+        for name, _ in Elf32_Ehdr._fields_:
+            logger.info("%s --> %s", name, getattr(header, name))
+
+        logger.info("----------------------------------------")
+
+        file.seek(header.e_shoff)
+
+        for _ in range(header.e_shnum):
+            data = file.read(sizeof(Elf32_Shdr))
+            shdr = Elf32_Shdr.from_buffer_copy(data)
+            shdrs.append(shdr)
+
+            for name, _ in Elf32_Shdr._fields_:
+                logger.info("%s --> %s", name, getattr(shdr, name))
+
+            logger.info("----------------------------------------")
