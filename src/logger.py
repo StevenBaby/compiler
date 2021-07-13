@@ -1,0 +1,16 @@
+'''
+(C) Copyright 2021 Steven;
+@author: Steven kangweibaby@163.com
+@date: 2021-07-13
+'''
+
+# coding=utf-8
+
+import sys
+import logging
+
+logging.basicConfig(
+    stream=sys.stdout,
+    level=logging.DEBUG,
+    format='[%(asctime)s] [%(module)s:%(lineno)d] %(levelname)s %(message)s',)
+logger = logging.getLogger()
