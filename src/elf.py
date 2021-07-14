@@ -512,15 +512,14 @@ class ElfTestCase(unittest.TestCase):
         strtab = self.shdrs[self.header.e_shstrndx]
         nametable = strtab.data.split(b'\0')
 
-        def get_name(start):
-            current = 0
-            for name in nametable:
-                if current == start:
-                    return name.decode("utf8")
-                current += len(name) + 1
+        namedict = {}
+        current = 0
+        for name in nametable:
+            namedict[current] = name.decode('utf8')
+            current += len(name) + 1
 
         for shdr in self.shdrs:
-            logger.info(f'section name {get_name(shdr.sh_name)}')
+            logger.info(f'section name {namedict[shdr.sh_name]}')
             logger.info(f'section type {Elf32_Shdr.SHT.get_name(shdr.sh_type)}')
             flags = set([shdr.sh_flags & (1 << var) for var in range(32)])
             logger.info(f'section flags {[Elf32_Shdr.SHF.get_name(flag) for flag in flags if flag ]}')
