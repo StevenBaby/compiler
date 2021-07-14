@@ -523,6 +523,9 @@ class ElfTestCase(unittest.TestCase):
             logger.info(f'section type {Elf32_Shdr.SHT.get_name(shdr.sh_type)}')
             flags = set([shdr.sh_flags & (1 << var) for var in range(32)])
             logger.info(f'section flags {[Elf32_Shdr.SHF.get_name(flag) for flag in flags if flag ]}')
+            logger.info(f'section addr 0x{shdr.sh_addr:X}')
+            logger.info(f'section align {shdr.sh_addralign}')
+            logger.info(f'section esize {shdr.sh_entsize}')
             logger.info(f'-----------------------------------------------------')
 
     def test(self):
