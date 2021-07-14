@@ -8,6 +8,7 @@
 
 import ctypes
 import struct
+import unittest
 from ctypes import sizeof
 from typing import *
 
@@ -45,14 +46,25 @@ Elf32_Versym = u32
 Elf64_Versym = u64
 
 
-class BaseStructure(ctypes.Structure):
+class Constant(object):
+
+    @classmethod
+    def get_name(cls, value):
+        if not hasattr(cls, 'NAMES'):
+            cls.NAMES = {}
+            for name in dir(cls):
+                var = getattr(cls, name)
+                if isinstance(var, (int, str)):
+                    cls.NAMES[var] = name
+        if value in cls.NAMES:
+            return cls.NAMES[value]
+        return "undefined"
+
+
+class BaseStructure(ctypes.LittleEndianStructure):
 
     _pack_ = 1  # 表示对齐
     _fields_ = []
-
-    def __dir__(self) -> Iterable[str]:
-        dirs = list(super().__dir__())
-        dirs.extend([name for name, _ in self._fields_])
 
 
 class ElfIdent(BaseStructure):
@@ -67,22 +79,23 @@ class ElfIdent(BaseStructure):
     ]
 
     # /* Conglomeration of the identification bytes, for easy testing as a word.  */
-    ELFMAG = "\177ELF"
-    SELFMAG = 4
+    class ID(Constant):
+        ELFMAG = "\177ELF"
+        SELFMAG = 4
 
-    EI_CLASS = 4		 # File class byte index
-    ELFCLASSNONE = 0		 # Invalid class
-    ELFCLASS32 = 1		 # 32-bit objects
-    ELFCLASS64 = 2		 # 64-bit objects
-    ELFCLASSNUM = 3
+        EI_CLASS = 4		 # File class byte index
+        ELFCLASSNONE = 0		 # Invalid class
+        ELFCLASS32 = 1		 # 32-bit objects
+        ELFCLASS64 = 2		 # 64-bit objects
+        ELFCLASSNUM = 3
 
-    EI_DATA = 5      # Data encoding byte index
-    ELFDATANONE = 0  # Invalid data encoding
-    ELFDATA2LSB = 1  # 2's complement, little endian
-    ELFDATA2MSB = 2  # 2's complement, big endian
-    ELFDATANUM = 3
+        EI_DATA = 5      # Data encoding byte index
+        ELFDATANONE = 0  # Invalid data encoding
+        ELFDATA2LSB = 1  # 2's complement, little endian
+        ELFDATA2MSB = 2  # 2's complement, big endian
+        ELFDATANUM = 3
 
-    EI_VERSION = 6  # File version byte index
+        EI_VERSION = 6  # File version byte index
 
 
 class Elf32_Ehdr(BaseStructure):
@@ -108,10 +121,10 @@ class Elf32_Ehdr(BaseStructure):
         ('e_shstrndx', Elf32_Half),
     ]
 
-    # #define(.+?)\t(.+?)/\* (.+) \*/
+    # #define(.+?)\t(.+?)/\*([\w\W]+?)\*/
     # $1 = $2 # $3
 
-    class ET:
+    class ET(Constant):
         # e_type
         ET_NONE = 0         # No file type
         ET_REL = 1          # Relocatable file
@@ -124,7 +137,7 @@ class Elf32_Ehdr(BaseStructure):
         ET_LOPROC = 0xff00  # Processor-specific range start
         ET_HIPROC = 0xffff  # Processor-specific range end
 
-    class EM:
+    class EM(Constant):
         # e_machine
         EM_NONE = 0  # No machine
         EM_M32 = 1  # AT&T WE 32100
@@ -318,7 +331,7 @@ class Elf32_Ehdr(BaseStructure):
 
         EM_NUM = 253
 
-    class EV:
+    class EV(Constant):
         # e_version
         EV_NONE = 0     # Invalid ELF version
         EV_CURRENT = 1  # Current version
@@ -356,17 +369,106 @@ class Elf32_Shdr(BaseStructure):
         ('sh_entsize', Elf32_Word),
     ]
 
+    class SHN(Constant):
+        SHN_UNDEF = 0  # Undefined section
+        SHN_LORESERVE = 0xff00  # Start of reserved indices
+        SHN_LOPROC = 0xff00  # Start of processor-specific
+        SHN_BEFORE = 0xff00  # Order section before all others (Solaris).
+        SHN_AFTER = 0xff01  # Order section after all others (Solaris).
+        SHN_HIPROC = 0xff1f  # End of processor-specific
+        SHN_LOOS = 0xff20  # Start of OS-specific
+        SHN_HIOS = 0xff3f  # End of OS-specific
+        SHN_ABS = 0xfff1  # Associated symbol is absolute
+        SHN_COMMON = 0xfff2  # Associated symbol is common
+        SHN_XINDEX = 0xffff  # Index is in extra table.
+        SHN_HIRESERVE = 0xffff  # End of reserved indices
 
-if __name__ == '__main__':
-    import os
-    dirname = os.path.dirname(__file__)
-    filename = os.path.join(dirname, "../build/test.o")
-    logger.debug(sizeof(Elf32_Ehdr))
+    class SHT(Constant):
+        SHT_NULL = 0  # Section header table entry unused
+        SHT_PROGBITS = 1  # Program data
+        SHT_SYMTAB = 2  # Symbol table
+        SHT_STRTAB = 3  # String table
+        SHT_RELA = 4  # Relocation entries with addends
+        SHT_HASH = 5  # Symbol hash table
+        SHT_DYNAMIC = 6  # Dynamic linking information
+        SHT_NOTE = 7  # Notes
+        SHT_NOBITS = 8  # Program space with no data (bss)
+        SHT_REL = 9  # Relocation entries, no addends
+        SHT_SHLIB = 10  # Reserved
+        SHT_DYNSYM = 11  # Dynamic linker symbol table
+        SHT_INIT_ARRAY = 14  # Array of constructors
+        SHT_FINI_ARRAY = 15  # Array of destructors
+        SHT_PREINIT_ARRAY = 16  # Array of pre-constructors
+        SHT_GROUP = 17  # Section group
+        SHT_SYMTAB_SHNDX = 18  # Extended section indices
+        SHT_NUM = 19  # Number of defined types.
+        SHT_LOOS = 0x60000000  # Start OS-specific.
+        SHT_GNU_ATTRIBUTES = 0x6ffffff5  # Object attributes.
+        SHT_GNU_HASH = 0x6ffffff6  # GNU-style hash table.
+        SHT_GNU_LIBLIST = 0x6ffffff7  # Prelink library list
+        SHT_CHECKSUM = 0x6ffffff8  # Checksum for DSO content.
+        SHT_LOSUNW = 0x6ffffffa  # Sun-specific low bound.
+        SHT_SUNW_move = 0x6ffffffa
+        SHT_SUNW_COMDAT = 0x6ffffffb
+        SHT_SUNW_syminfo = 0x6ffffffc
+        SHT_GNU_verdef = 0x6ffffffd  # Version definition section.
+        SHT_GNU_verneed = 0x6ffffffe  # Version needs section.
+        SHT_GNU_versym = 0x6fffffff  # Version symbol table.
+        SHT_HISUNW = 0x6fffffff  # Sun-specific high bound.
+        SHT_HIOS = 0x6fffffff  # End OS-specific type
+        SHT_LOPROC = 0x70000000  # Start of processor-specific
+        SHT_HIPROC = 0x7fffffff  # End of processor-specific
+        SHT_LOUSER = 0x80000000  # Start of application-specific
+        SHT_HIUSER = 0x8fffffff  # End of application-specific
 
-    shdrs = []
+    class SHF(Constant):
+        SHF_WRITE = (1 << 0)  # Writable
+        SHF_ALLOC = (1 << 1)  # Occupies memory during execution
+        SHF_EXECINSTR = (1 << 2)  # Executable
+        SHF_MERGE = (1 << 4)  # Might be merged
+        SHF_MASKPROC = 0xf0000000  # Processor-specific
 
-    with open(filename, 'rb') as file:
-        data = file.read(sizeof(Elf32_Ehdr))
+
+class Elf32_Sym(BaseStructure):
+
+    '''
+    typedef struct
+    {
+    Elf32_Word	st_name;		/* Symbol name (string tbl index) */
+    Elf32_Addr	st_value;		/* Symbol value */
+    Elf32_Word	st_size;		/* Symbol size */
+    unsigned char	st_info;		/* Symbol type and binding */
+    unsigned char	st_other;		/* Symbol visibility */
+    Elf32_Section	st_shndx;		/* Section index */
+    } Elf32_Sym;
+    '''
+
+    _fields_ = [
+        ('st_name', Elf32_Word),
+        ('st_value', Elf32_Addr),
+        ('st_size', Elf32_Word),
+        ('st_info', u8),
+        ('st_other', u8),
+        ('st_shndx', Elf32_Half),
+    ]
+
+
+class ElfTestCase(unittest.TestCase):
+
+    def setUp(self) -> None:
+        super().setUp()
+        import os
+        dirname = os.path.dirname(__file__)
+        filename = os.path.join(dirname, "../build/test.o")
+        self.file = open(filename, 'rb')
+        self.shdrs = []
+
+    def tearDown(self) -> None:
+        self.file.close()
+        super().tearDown()
+
+    def read_header(self):
+        data = self.file.read(sizeof(Elf32_Ehdr))
         logger.debug(data)
         header = Elf32_Ehdr.from_buffer_copy(data)
 
@@ -379,15 +481,57 @@ if __name__ == '__main__':
             logger.info("%s --> %s", name, getattr(header, name))
 
         logger.info("----------------------------------------")
+        self.header = header
+
+    def read_shdrs(self):
+        self.shdrs = []
+
+        file = self.file
+        header = self.header
 
         file.seek(header.e_shoff)
 
         for _ in range(header.e_shnum):
-            data = file.read(sizeof(Elf32_Shdr))
+            data = file.read(header.e_shentsize)
             shdr = Elf32_Shdr.from_buffer_copy(data)
-            shdrs.append(shdr)
+            self.shdrs.append(shdr)
 
             for name, _ in Elf32_Shdr._fields_:
                 logger.info("%s --> %s", name, getattr(shdr, name))
 
             logger.info("----------------------------------------")
+
+        for shdr in self.shdrs:
+            if shdr.sh_size == 0:
+                shdr.data = None
+            else:
+                file.seek(shdr.sh_offset)
+                shdr.data = file.read(shdr.sh_size)
+
+    def read_sections(self):
+        strtab = self.shdrs[self.header.e_shstrndx]
+        nametable = strtab.data.split(b'\0')
+
+        def get_name(start):
+            current = 0
+            for name in nametable:
+                if current == start:
+                    return name.decode("utf8")
+                current += len(name) + 1
+
+        for shdr in self.shdrs:
+            logger.info(f'section name {get_name(shdr.sh_name)}')
+            logger.info(f'section type {Elf32_Shdr.SHT.get_name(shdr.sh_type)}')
+            flags = set([shdr.sh_flags & (1 << var) for var in range(32)])
+            logger.info(f'section flags {[Elf32_Shdr.SHF.get_name(flag) for flag in flags if flag ]}')
+            logger.info(f'-----------------------------------------------------')
+
+    def test(self):
+        logger.debug(sizeof(Elf32_Ehdr))
+        self.read_header()
+        self.read_shdrs()
+        self.read_sections()
+
+
+if __name__ == '__main__':
+    unittest.main()
