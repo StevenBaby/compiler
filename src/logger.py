@@ -12,5 +12,5 @@ import logging
 logging.basicConfig(
     stream=sys.stdout,
     level=logging.DEBUG,
-    format='[%(asctime)s] [%(module)s:%(lineno)d] [%(levelno)s] %(message)s',)
+    format='[%(asctime)s] [%(filename)s:%(lineno)d] [%(levelno)s] %(message)s',)
 logger = logging.getLogger()

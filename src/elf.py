@@ -9,6 +9,8 @@
 import ctypes
 import struct
 import unittest
+from io import BytesIO
+
 from ctypes import sizeof
 from typing import *
 
@@ -79,9 +81,11 @@ class ElfIdent(BaseStructure):
     ]
 
     # /* Conglomeration of the identification bytes, for easy testing as a word.  */
-    class ID(Constant):
+    class MAGIC(Constant):
         ELFMAG = "\177ELF"
         SELFMAG = 4
+
+    class CLASS(Constant):
 
         EI_CLASS = 4		 # File class byte index
         ELFCLASSNONE = 0		 # Invalid class
@@ -89,13 +93,13 @@ class ElfIdent(BaseStructure):
         ELFCLASS64 = 2		 # 64-bit objects
         ELFCLASSNUM = 3
 
+    class DATA(Constant):
+
         EI_DATA = 5      # Data encoding byte index
         ELFDATANONE = 0  # Invalid data encoding
         ELFDATA2LSB = 1  # 2's complement, little endian
         ELFDATA2MSB = 2  # 2's complement, big endian
         ELFDATANUM = 3
-
-        EI_VERSION = 6  # File version byte index
 
 
 class Elf32_Ehdr(BaseStructure):
@@ -347,11 +351,11 @@ class Elf32_Shdr(BaseStructure):
     Elf32_Word	sh_type;		/* Section type */
     Elf32_Word	sh_flags;		/* Section flags */
     Elf32_Addr	sh_addr;		/* Section virtual addr at execution */
-    Elf32_Off	    sh_offset;      /* Section file offset */
+    Elf32_Off	sh_offset;      /* Section file offset */
     Elf32_Word	sh_size;		/* Section size in bytes */
     Elf32_Word	sh_link;		/* Link to another section */
     Elf32_Word	sh_info;		/* Additional section information */
-    Elf32_Word	sh_addralign;		/* Section alignment */
+    Elf32_Word	sh_addralign;	/* Section alignment */
     Elf32_Word	sh_entsize;		/* Entry size if section holds table */
     } Elf32_Shdr;
     '''
@@ -382,6 +386,13 @@ class Elf32_Shdr(BaseStructure):
         SHN_COMMON = 0xfff2  # Associated symbol is common
         SHN_XINDEX = 0xffff  # Index is in extra table.
         SHN_HIRESERVE = 0xffff  # End of reserved indices
+
+        @classmethod
+        def get_name(cls, value):
+            name = super().get_name(value)
+            if name == 'undefined':
+                return value
+            return name
 
     class SHT(Constant):
         SHT_NULL = 0  # Section header table entry unused
@@ -452,6 +463,32 @@ class Elf32_Sym(BaseStructure):
         ('st_shndx', Elf32_Half),
     ]
 
+    class STB(Constant):
+        STB_LOCAL = 0  # Local symbol
+        STB_GLOBAL = 1  # Global symbol
+        STB_WEAK = 2  # Weak symbol
+        STB_NUM = 3  # Number of defined types.
+        STB_LOOS = 10  # Start of OS-specific
+        STB_GNU_UNIQUE = 10  # Unique symbol.
+        STB_HIOS = 12  # End of OS-specific
+        STB_LOPROC = 13  # Start of processor-specific
+        STB_HIPROC = 15  # End of processor-specific
+
+    class STT(Constant):
+        STT_NOTYPE = 0  # Symbol type is unspecified
+        STT_OBJECT = 1  # Symbol is a data object
+        STT_FUNC = 2  # Symbol is a code object
+        STT_SECTION = 3  # Symbol associated with a section
+        STT_FILE = 4  # Symbol's name is file name
+        STT_COMMON = 5  # Symbol is a common data object
+        STT_TLS = 6  # Symbol is thread-local data object
+        STT_NUM = 7  # Number of defined types.
+        STT_LOOS = 10  # Start of OS-specific
+        STT_GNU_IFUNC = 10  # Symbol is indirect code object
+        STT_HIOS = 12  # End of OS-specific
+        STT_LOPROC = 13  # Start of processor-specific
+        STT_HIPROC = 15  # End of processor-specific
+
 
 class ElfTestCase(unittest.TestCase):
 
@@ -469,19 +506,27 @@ class ElfTestCase(unittest.TestCase):
 
     def read_header(self):
         data = self.file.read(sizeof(Elf32_Ehdr))
-        logger.debug(data)
+        # logger.debug(data)
         header = Elf32_Ehdr.from_buffer_copy(data)
+        self.header = header
 
-        for name, _ in ElfIdent._fields_:
-            logger.info("%s --> %s", name, getattr(header.e_ident, name))
+    def print_header(self):
+        header = self.header
+        logger.info("elf magic %s", header.e_ident.ei_magic.to_bytes(4, byteorder='little'))
+        logger.info("elf class %s", ElfIdent.CLASS.get_name(header.e_ident.ei_class))
+        logger.info("elf data %s", ElfIdent.DATA.get_name(header.e_ident.ei_data))
 
-        logger.info("----------------------------------------")
+        self.splitter()
+
+        logger.info("elf type --> %s", Elf32_Ehdr.ET.get_name(header.e_type))
+        logger.info("elf machine --> %s", Elf32_Ehdr.EM.get_name(header.e_machine))
+        logger.info("elf version --> %s", Elf32_Ehdr.EV.get_name(header.e_version))
 
         for name, _ in Elf32_Ehdr._fields_:
-            logger.info("%s --> %s", name, getattr(header, name))
-
-        logger.info("----------------------------------------")
-        self.header = header
+            if name in {"e_type", "e_machine", "e_version", 'e_ident'}:
+                continue
+            logger.info("elf %s --> %s", name, getattr(header, name))
+        self.splitter()
 
     def read_shdrs(self):
         self.shdrs = []
@@ -496,10 +541,10 @@ class ElfTestCase(unittest.TestCase):
             shdr = Elf32_Shdr.from_buffer_copy(data)
             self.shdrs.append(shdr)
 
-            for name, _ in Elf32_Shdr._fields_:
-                logger.info("%s --> %s", name, getattr(shdr, name))
+            # for name, _ in Elf32_Shdr._fields_:
+            #     logger.info("%s --> %s", name, getattr(shdr, name))
 
-            logger.info("----------------------------------------")
+            # self.splitter(1)
 
         for shdr in self.shdrs:
             if shdr.sh_size == 0:
@@ -508,31 +553,90 @@ class ElfTestCase(unittest.TestCase):
                 file.seek(shdr.sh_offset)
                 shdr.data = file.read(shdr.sh_size)
 
-    def read_sections(self):
-        strtab = self.shdrs[self.header.e_shstrndx]
-        nametable = strtab.data.split(b'\0')
+    def get_strdict(self, shdr):
+        nametable = shdr.data.split(b'\0')
 
         namedict = {}
         current = 0
         for name in nametable:
             namedict[current] = name.decode('utf8')
             current += len(name) + 1
+        return namedict
 
-        for shdr in self.shdrs:
+    def print_shdrs(self):
+        strtab = self.shdrs[self.header.e_shstrndx]
+        namedict = self.get_strdict(strtab)
+
+        for index, shdr in enumerate(self.shdrs):
+            logger.info(f'section index {index}')
             logger.info(f'section name {namedict[shdr.sh_name]}')
             logger.info(f'section type {Elf32_Shdr.SHT.get_name(shdr.sh_type)}')
             flags = set([shdr.sh_flags & (1 << var) for var in range(32)])
             logger.info(f'section flags {[Elf32_Shdr.SHF.get_name(flag) for flag in flags if flag ]}')
             logger.info(f'section addr 0x{shdr.sh_addr:X}')
-            logger.info(f'section align {shdr.sh_addralign}')
-            logger.info(f'section esize {shdr.sh_entsize}')
-            logger.info(f'-----------------------------------------------------')
+            # logger.info(f'section offset 0x{shdr.sh_offset:X}')
+            # logger.info(f'section size 0x{shdr.sh_size:X}')
+            logger.info(f'section link 0x{shdr.sh_link:X}')
+            logger.info(f'section info 0x{shdr.sh_info:X}')
+            # logger.info(f'section align {shdr.sh_addralign}')
+            # logger.info(f'section esize {shdr.sh_entsize}')
+
+            self.splitter(1)
+        self.splitter()
+
+    def splitter(self, indent=0):
+        start = indent * 4
+        logger.info(f"{' ' * start}{'-' * (50 - start)}")
+
+    def get_st_bind(self, info):
+        return info >> 4
+
+    def get_st_type(self, info):
+        return info & 0xf
+
+    def get_st_info(self, bind, type):
+        return (bind << 4) | (type & 0xf)
+
+    def print_symbols(self):
+        shdrs = self.shdrs
+        for shdr in self.shdrs:
+            if shdr.sh_type == Elf32_Shdr.SHT.SHT_SYMTAB:
+                # logger.debug(shdr)
+                break
+
+        stream = BytesIO(shdr.data)
+        stream.seek(0)
+
+        strtab = self.shdrs[shdr.sh_link]
+        namedict = self.get_strdict(strtab)
+
+        while True:
+            data = stream.read(shdr.sh_entsize)
+            if not data:
+                break
+            sym = Elf32_Sym.from_buffer_copy(data)
+
+            logger.info("symbol name %s", namedict[sym.st_name])
+            logger.info("symbol value %s", sym.st_value)
+            logger.info("symbol size %s", sym.st_size)
+            # logger.info("symbol info %s", sym.st_info)
+            # logger.info("symbol other %s", sym.st_other)
+            logger.info(f"symbol shndx {Elf32_Shdr.SHN.get_name(sym.st_shndx)}")
+            logger.info("symbol bind %s", Elf32_Sym.STB.get_name(self.get_st_bind(sym.st_info)))
+            logger.info("symbol type %s", Elf32_Sym.STT.get_name(self.get_st_type(sym.st_info)))
+
+            self.splitter(1)
 
     def test(self):
-        logger.debug(sizeof(Elf32_Ehdr))
+
+        self.splitter()
         self.read_header()
+        # self.print_header()
+
         self.read_shdrs()
-        self.read_sections()
+        # self.print_shdrs()
+
+        self.print_symbols()
 
 
 if __name__ == '__main__':
