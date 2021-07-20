@@ -576,7 +576,8 @@ class ElfTestCase(unittest.TestCase):
         super().setUp()
         import os
         dirname = os.path.dirname(__file__)
-        filename = os.path.join(dirname, "../build/test.o")
+        # filename = os.path.join(dirname, "../build/test.o")
+        filename = os.path.join(dirname, "../build/test")
         self.file = open(filename, 'rb')
         self.shdrs = []
 
@@ -605,7 +606,8 @@ class ElfTestCase(unittest.TestCase):
         for name, _ in Elf32_Ehdr._fields_:
             if name in {"e_type", "e_machine", "e_version", 'e_ident'}:
                 continue
-            logger.info("elf %s --> %s", name, getattr(header, name))
+            logger.info(f"elf {name} --> 0x{getattr(header, name):x}")
+
         self.splitter()
 
     def read_shdrs(self):
@@ -683,7 +685,12 @@ class ElfTestCase(unittest.TestCase):
     def print_struct(self, instance):
         cls = type(instance)
         for name, _ in cls._fields_:
-            logger.info(f"{cls.__name__} %s --> %s", name, getattr(instance, name))
+            value = getattr(instance, name)
+            if isinstance(value, int):
+                content = f"0x{value:x}"
+            else:
+                content = value
+            logger.info(f"{cls.__name__} {name} --> {content}")
 
     def read_symbols(self):
         shdrs = self.shdrs
@@ -711,10 +718,8 @@ class ElfTestCase(unittest.TestCase):
         for sym in self.symtab:
 
             logger.info("symbol name %s", sym.name)
-            logger.info("symbol value %s", sym.st_value)
-            logger.info("symbol size %s", sym.st_size)
-            # logger.info("symbol info %s", sym.st_info)
-            # logger.info("symbol other %s", sym.st_other)
+            logger.info(f"symbol value 0x{sym.st_value:x}")
+            logger.info(f"symbol size 0x{sym.st_size:x}")
             logger.info(f"symbol shndx {Elf32_Shdr.SHN.get_name(sym.st_shndx)}")
             logger.info("symbol bind %s", Elf32_Sym.STB.get_name(self.get_st_bind(sym.st_info)))
             logger.info("symbol type %s", Elf32_Sym.STT.get_name(self.get_st_type(sym.st_info)))
@@ -758,11 +763,11 @@ class ElfTestCase(unittest.TestCase):
     def print_rel(self):
         for rel in self.reltab:
             cls = type(rel)
-            logger.info("rel offset %s", rel.r_offset)
+            logger.info(f"rel offset 0x{rel.r_offset:x}")
             logger.info("rel sym %s", self.get_r_sym(rel.r_info))
             logger.info("rel type %s", cls.R.get_name(self.get_r_type(rel.r_info)))
             if isinstance(cls, Elf32_Rela):
-                logger.info("rel addend %s", rel.r_addend)
+                logger.info(f"rel addend 0x{rel.r_addend:x}")
 
             self.splitter(1)
         self.splitter()
@@ -771,16 +776,16 @@ class ElfTestCase(unittest.TestCase):
 
         self.splitter()
         self.read_header()
-        # self.print_header()
+        self.print_header()
 
         self.read_shdrs()
         self.print_shdrs()
 
-        self.read_symbols()
-        self.print_symbols()
+        # self.read_symbols()
+        # self.print_symbols()
 
-        self.read_rel()
-        self.print_rel()
+        # self.read_rel()
+        # self.print_rel()
 
 
 if __name__ == '__main__':
