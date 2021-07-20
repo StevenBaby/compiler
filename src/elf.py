@@ -48,6 +48,14 @@ Elf32_Versym = u32
 Elf64_Versym = u64
 
 
+# 用于替换 C 结构体定义的正则
+# .+(Elf.+)\t(.+_.+);.*
+# ('$2', $1),
+
+# 用于替换 C 常量定义的正则
+# #define(.+?)[ \t]+(\d+)[\s]*(?:/\*([\w\W]+?)\*/)?
+# $1 = $2 # $3
+
 class Constant(object):
 
     @classmethod
@@ -104,10 +112,6 @@ class ElfIdent(BaseStructure):
 
 class Elf32_Ehdr(BaseStructure):
 
-    # +(Elf.+)\t(e_.+);.*
-    # ('$2', $1),
-    # 用于替换 C 结构体定义的正则
-
     _fields_ = [
         ('e_ident', ElfIdent),
         ('e_type', Elf32_Half),
@@ -124,9 +128,6 @@ class Elf32_Ehdr(BaseStructure):
         ('e_shnum', Elf32_Half),
         ('e_shstrndx', Elf32_Half),
     ]
-
-    # #define(.+?)\t(.+?)/\*([\w\W]+?)\*/
-    # $1 = $2 # $3
 
     class ET(Constant):
         # e_type
@@ -490,6 +491,85 @@ class Elf32_Sym(BaseStructure):
         STT_HIPROC = 15  # End of processor-specific
 
 
+class Elf32_Rel(BaseStructure):
+
+    '''
+    typedef struct
+    {
+        Elf32_Addr	r_offset;		/* Address */
+        Elf32_Word	r_info;			/* Relocation type and symbol index */
+    } Elf32_Rel;
+    '''
+
+    _fields_ = [
+        ('r_offset', Elf32_Addr),
+        ('r_info', Elf32_Word),
+    ]
+
+    class R(Constant):
+        R_386_NONE = 0  # No reloc
+        R_386_32 = 1  # Direct 32 bit
+        R_386_PC32 = 2  # PC relative 32 bit
+        R_386_GOT32 = 3  # 32 bit GOT entry
+        R_386_PLT32 = 4  # 32 bit PLT address
+        R_386_COPY = 5  # Copy symbol at runtime
+        R_386_GLOB_DAT = 6  # Create GOT entry
+        R_386_JMP_SLOT = 7  # Create PLT entry
+        R_386_RELATIVE = 8  # Adjust by program base
+        R_386_GOTOFF = 9  # 32 bit offset to GOT
+        R_386_GOTPC = 10  # 32 bit PC relative offset to GOT
+        R_386_32PLT = 11  # R_386_TLS_TPOFF = 14 #  Offset in static TLS block
+        R_386_TLS_IE = 15  # Address of GOT entry for static TLS block offset
+        R_386_TLS_GOTIE = 16  # GOT entry for static TLS block offset
+        R_386_TLS_LE = 17  # Offset relative to static TLS block
+        R_386_TLS_GD = 18  # Direct 32 bit for GNU version of general dynamic thread local data
+        R_386_TLS_LDM = 19  # Direct 32 bit for GNU version of local dynamic thread local data in LE code
+        R_386_16 = 20
+        R_386_PC16 = 21
+        R_386_8 = 22
+        R_386_PC8 = 23
+        R_386_TLS_GD_32 = 24  # Direct 32 bit for general dynamic thread local data
+        R_386_TLS_GD_PUSH = 25  # Tag for pushl in GD TLS code
+        R_386_TLS_GD_CALL = 26  # Relocation for call to __tls_get_addr()
+        R_386_TLS_GD_POP = 27  # Tag for popl in GD TLS code
+        R_386_TLS_LDM_32 = 28  # Direct 32 bit for local dynamic thread local data in LE code
+        R_386_TLS_LDM_PUSH = 29  # Tag for pushl in LDM TLS code
+        R_386_TLS_LDM_CALL = 30  # Relocation for call to __tls_get_addr() in LDM code
+        R_386_TLS_LDM_POP = 31  # Tag for popl in LDM TLS code
+        R_386_TLS_LDO_32 = 32  # Offset relative to TLS block
+        R_386_TLS_IE_32 = 33  # GOT entry for negated static TLS block offset
+        R_386_TLS_LE_32 = 34  # Negated offset relative to static TLS block
+        R_386_TLS_DTPMOD32 = 35  # ID of module containing symbol
+        R_386_TLS_DTPOFF32 = 36  # Offset in TLS block
+        R_386_TLS_TPOFF32 = 37  # Negated offset in static TLS block
+        R_386_SIZE32 = 38  # 32-bit symbol size
+        R_386_TLS_GOTDESC = 39  # GOT offset for TLS descriptor.
+        R_386_TLS_DESC_CALL = 40  # Marker of call through TLS descriptor for relaxation.
+        R_386_TLS_DESC = 41  # TLS descriptor containing pointer to code and to argument, returning the TLS offset for the symbol.
+        R_386_IRELATIVE = 42  # Adjust indirectly by program base
+        R_386_GOT32X = 43  # Load from 32 bit GOT entry, relaxable.
+        # Keep this the last entry
+        R_386_NUM = 44
+
+
+class Elf32_Rela(Elf32_Rel):
+
+    '''
+    typedef struct
+    {
+        Elf32_Addr	r_offset;		/* Address */
+        Elf32_Word	r_info;			/* Relocation type and symbol index */
+        Elf32_Sword	r_addend;		/* Addend */
+    } Elf32_Rela;
+    '''
+
+    _fields_ = [
+        ('r_offset', Elf32_Addr),
+        ('r_info', Elf32_Word),
+        ('r_addend', Elf32_Sword),
+    ]
+
+
 class ElfTestCase(unittest.TestCase):
 
     def setUp(self) -> None:
@@ -589,15 +669,23 @@ class ElfTestCase(unittest.TestCase):
         logger.info(f"{' ' * start}{'-' * (50 - start)}")
 
     def get_st_bind(self, info):
+
         return info >> 4
 
     def get_st_type(self, info):
+
         return info & 0xf
 
     def get_st_info(self, bind, type):
+
         return (bind << 4) | (type & 0xf)
 
-    def print_symbols(self):
+    def print_struct(self, instance):
+        cls = type(instance)
+        for name, _ in cls._fields_:
+            logger.info(f"{cls.__name__} %s --> %s", name, getattr(instance, name))
+
+    def read_symbols(self):
         shdrs = self.shdrs
         for shdr in self.shdrs:
             if shdr.sh_type == Elf32_Shdr.SHT.SHT_SYMTAB:
@@ -610,13 +698,19 @@ class ElfTestCase(unittest.TestCase):
         strtab = self.shdrs[shdr.sh_link]
         namedict = self.get_strdict(strtab)
 
+        self.symtab = []
         while True:
             data = stream.read(shdr.sh_entsize)
             if not data:
                 break
             sym = Elf32_Sym.from_buffer_copy(data)
+            sym.name = namedict[sym.st_name]
+            self.symtab.append(sym)
 
-            logger.info("symbol name %s", namedict[sym.st_name])
+    def print_symbols(self):
+        for sym in self.symtab:
+
+            logger.info("symbol name %s", sym.name)
             logger.info("symbol value %s", sym.st_value)
             logger.info("symbol size %s", sym.st_size)
             # logger.info("symbol info %s", sym.st_info)
@@ -626,6 +720,52 @@ class ElfTestCase(unittest.TestCase):
             logger.info("symbol type %s", Elf32_Sym.STT.get_name(self.get_st_type(sym.st_info)))
 
             self.splitter(1)
+        self.splitter()
+
+    def get_r_sym(self, info):
+        return info >> 8
+
+    def get_r_type(self, info):
+        return info & 0xff
+
+    def get_r_info(self, sym, type):
+        return (sym << 8) | type
+
+    def read_rel(self):
+        self.reltab = []
+
+        types = {
+            Elf32_Shdr.SHT.SHT_REL: Elf32_Rel,
+            Elf32_Shdr.SHT.SHT_RELA: Elf32_Rela,
+        }
+
+        for shdr in self.shdrs:
+            if shdr.sh_type not in types:
+                continue
+
+            stream = BytesIO(shdr.data)
+            stream.seek(0)
+
+            cls = types[shdr.sh_type]
+
+            while True:
+                data = stream.read(sizeof(cls))
+                if not data:
+                    break
+                rel = cls.from_buffer_copy(data)
+                self.reltab.append(rel)
+
+    def print_rel(self):
+        for rel in self.reltab:
+            cls = type(rel)
+            logger.info("rel offset %s", rel.r_offset)
+            logger.info("rel sym %s", self.get_r_sym(rel.r_info))
+            logger.info("rel type %s", cls.R.get_name(self.get_r_type(rel.r_info)))
+            if isinstance(cls, Elf32_Rela):
+                logger.info("rel addend %s", rel.r_addend)
+
+            self.splitter(1)
+        self.splitter()
 
     def test(self):
 
@@ -634,9 +774,13 @@ class ElfTestCase(unittest.TestCase):
         # self.print_header()
 
         self.read_shdrs()
-        # self.print_shdrs()
+        self.print_shdrs()
 
+        self.read_symbols()
         self.print_symbols()
+
+        self.read_rel()
+        self.print_rel()
 
 
 if __name__ == '__main__':
