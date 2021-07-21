@@ -53,7 +53,7 @@ Elf64_Versym = u64
 # ('$2', $1),
 
 # 用于替换 C 常量定义的正则
-# #define(.+?)[ \t]+(\d+)[\s]*(?:/\*([\w\W]+?)\*/)?
+# #define(.+?)[ \t]+([\da-fx]+)[\s]*(?:/\*([\w\W]+?)\*/)?
 # $1 = $2 # $3
 
 class Constant(object):
@@ -570,6 +570,62 @@ class Elf32_Rela(Elf32_Rel):
     ]
 
 
+class Elf32_Phdr(BaseStructure):
+
+    '''
+    typedef struct
+    {
+        Elf32_Word	p_type;			/* Segment type */
+        Elf32_Off	p_offset;		/* Segment file offset */
+        Elf32_Addr	p_vaddr;		/* Segment virtual address */
+        Elf32_Addr	p_paddr;		/* Segment physical address */
+        Elf32_Word	p_filesz;		/* Segment size in file */
+        Elf32_Word	p_memsz;		/* Segment size in memory */
+        Elf32_Word	p_flags;		/* Segment flags */
+        Elf32_Word	p_align;		/* Segment alignment */
+    } Elf32_Phdr;
+    '''
+
+    _fields_ = [
+        ('p_type', Elf32_Word),
+        ('p_offset', Elf32_Off),
+        ('p_vaddr', Elf32_Addr),
+        ('p_paddr', Elf32_Addr),
+        ('p_filesz', Elf32_Word),
+        ('p_memsz', Elf32_Word),
+        ('p_flags', Elf32_Word),
+        ('p_align', Elf32_Word),
+    ]
+
+    class PT(Constant):
+        PT_NULL = 0  # Program header table entry unused
+        PT_LOAD = 1  # Loadable program segment
+        PT_DYNAMIC = 2  # Dynamic linking information
+        PT_INTERP = 3  # Program interpreter
+        PT_NOTE = 4  # Auxiliary information
+        PT_SHLIB = 5  # Reserved
+        PT_PHDR = 6  # Entry for header table itself
+        PT_TLS = 7  # Thread-local storage segment
+        PT_NUM = 8  # Number of defined types
+        PT_LOOS = 0x60000000  # Start of OS-specific
+        PT_GNU_EH_FRAME = 0x6474e550  # GCC .eh_frame_hdr segment
+        PT_GNU_STACK = 0x6474e551  # Indicates stack executability
+        PT_GNU_RELRO = 0x6474e552  # Read-only after relocation
+        PT_GNU_PROPERTY = 0x6474e553  # GNU property
+        PT_LOSUNW = 0x6ffffffa  # PT_SUNWBSS = 0x6ffffffa #  Sun Specific segment
+        PT_SUNWSTACK = 0x6ffffffb  # Stack segment
+        PT_HISUNW = 0x6fffffff  # PT_HIOS = 0x6fffffff #  End of OS-specific
+        PT_LOPROC = 0x70000000  # Start of processor-specific
+        PT_HIPROC = 0x7fffffff  # End of processor-specific
+
+    class PF(Constant):
+        PF_X = 1  # Segment is executable
+        PF_W = 2  # Segment is writable
+        PF_R = 4  # Segment is readable
+        PF_MASKOS = 0x0ff00000  # OS-specific
+        PF_MASKPROC = 0xf0000000  # Processor-specific
+
+
 class ElfTestCase(unittest.TestCase):
 
     def setUp(self) -> None:
@@ -728,12 +784,15 @@ class ElfTestCase(unittest.TestCase):
         self.splitter()
 
     def get_r_sym(self, info):
+
         return info >> 8
 
     def get_r_type(self, info):
+
         return info & 0xff
 
     def get_r_info(self, sym, type):
+
         return (sym << 8) | type
 
     def read_rel(self):
@@ -772,6 +831,40 @@ class ElfTestCase(unittest.TestCase):
             self.splitter(1)
         self.splitter()
 
+    def read_phdrs(self):
+        self.phdrs = []
+        file = self.file
+        header = self.header
+
+        file.seek(header.e_phoff)
+
+        for _ in range(header.e_phnum):
+            data = file.read(header.e_phentsize)
+            phdr = Elf32_Phdr.from_buffer_copy(data)
+            self.phdrs.append(phdr)
+
+        for phdr in self.phdrs:
+            if phdr.p_filesz == 0:
+                phdr.data = None
+            else:
+                file.seek(phdr.p_offset)
+                phdr.data = file.read(phdr.p_filesz)
+
+    def print_phdrs(self):
+        for phdr in self.phdrs:
+            logger.info(f"phdr type --> {Elf32_Phdr.PT.get_name(phdr.p_type)}")
+            logger.info(f"phdr offset --> 0x{phdr.p_offset:x}")
+            logger.info(f"phdr vaddr --> 0x{phdr.p_vaddr:x}")
+            logger.info(f"phdr paddr --> 0x{phdr.p_paddr:x}")
+            logger.info(f"phdr filesz --> 0x{phdr.p_filesz:x}")
+            logger.info(f"phdr memsz --> 0x{phdr.p_memsz:x}")
+            flags = set([phdr.p_flags & (1 << var) for var in range(32)])
+            logger.info(f'phdr flags --> {[Elf32_Phdr.PF.get_name(flag) for flag in flags if flag ]}')
+            logger.info(f"phdr align --> 0x{phdr.p_align:x}")
+            logger.info(f"phdr data --> {phdr.data}")
+            self.splitter(1)
+        self.splitter()
+
     def test(self):
 
         self.splitter()
@@ -779,13 +872,16 @@ class ElfTestCase(unittest.TestCase):
         self.print_header()
 
         self.read_shdrs()
-        self.print_shdrs()
+        # self.print_shdrs()
 
         # self.read_symbols()
         # self.print_symbols()
 
         # self.read_rel()
         # self.print_rel()
+
+        self.read_phdrs()
+        self.print_phdrs()
 
 
 if __name__ == '__main__':
