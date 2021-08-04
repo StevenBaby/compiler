@@ -8,10 +8,11 @@
 
 import ctypes
 import struct
+import types
 import unittest
 from io import BytesIO
 
-from ctypes import sizeof
+from ctypes import Structure, sizeof
 from typing import *
 
 from common import *
@@ -74,6 +75,12 @@ class Constant(object):
 class BaseStructure(ctypes.LittleEndianStructure):
 
     _pack_ = 1  # 表示对齐
+    _fields_ = []
+
+
+class BaseUnion(ctypes.Union):
+
+    _pack_ = 1
     _fields_ = []
 
 
@@ -626,6 +633,115 @@ class Elf32_Phdr(BaseStructure):
         PF_MASKPROC = 0xf0000000  # Processor-specific
 
 
+class Elf32_Dyn(Structure):
+    '''
+    typedef struct
+    {
+    Elf32_Sword	d_tag;			/* Dynamic entry type */
+    union
+        {
+        Elf32_Word d_val;			/* Integer value */
+        Elf32_Addr d_ptr;			/* Address value */
+        } d_un;
+    } Elf32_Dyn;
+    '''
+
+    class Dun(BaseUnion):
+
+        _fields_ = [
+            ('d_val', Elf32_Word),
+            ('d_ptr', Elf32_Addr),
+        ]
+
+    _fields_ = [
+        ('d_tag', Elf32_Sword),
+        ('d_un', Dun),
+    ]
+
+    class DT(Constant):
+        DT_NULL = 0  # Marks end of dynamic section
+        DT_NEEDED = 1  # Name of needed library
+        DT_PLTRELSZ = 2  # Size in bytes of PLT relocs
+        DT_PLTGOT = 3  # Processor defined value
+        DT_HASH = 4  # Address of symbol hash table
+        DT_STRTAB = 5  # Address of string table
+        DT_SYMTAB = 6  # Address of symbol table
+        DT_RELA = 7  # Address of Rela relocs
+        DT_RELASZ = 8  # Total size of Rela relocs
+        DT_RELAENT = 9  # Size of one Rela reloc
+        DT_STRSZ = 10  # Size of string table
+        DT_SYMENT = 11  # Size of one symbol table entry
+        DT_INIT = 12  # Address of init function
+        DT_FINI = 13  # Address of termination function
+        DT_SONAME = 14  # Name of shared object
+        DT_RPATH = 15  # Library search path (deprecated)
+        DT_SYMBOLIC = 16  # Start symbol search here
+        DT_REL = 17  # Address of Rel relocs
+        DT_RELSZ = 18  # Total size of Rel relocs
+        DT_RELENT = 19  # Size of one Rel reloc
+        DT_PLTREL = 20  # Type of reloc in PLT
+        DT_DEBUG = 21  # For debugging; unspecified
+        DT_TEXTREL = 22  # Reloc might modify .text
+        DT_JMPREL = 23  # Address of PLT relocs
+        DT_BIND_NOW = 24  # Process relocations of object
+        DT_INIT_ARRAY = 25  # Array with addresses of init fct
+        DT_FINI_ARRAY = 26  # Array with addresses of fini fct
+        DT_INIT_ARRAYSZ = 27  # Size in bytes of DT_INIT_ARRAY
+        DT_FINI_ARRAYSZ = 28  # Size in bytes of DT_FINI_ARRAY
+        DT_RUNPATH = 29  # Library search path
+        DT_FLAGS = 30  # Flags for the object being loaded
+        DT_ENCODING = 32  # Start of encoded range
+        DT_PREINIT_ARRAY = 32  # Array with addresses of preinit fct
+        DT_PREINIT_ARRAYSZ = 33  # size in bytes of DT_PREINIT_ARRAY
+        DT_SYMTAB_SHNDX = 34  # Address of SYMTAB_SHNDX section
+        DT_NUM = 35  # Number used
+        DT_LOOS = 0x6000000d  # Start of OS-specific
+        DT_HIOS = 0x6ffff000  # End of OS-specific
+        DT_LOPROC = 0x70000000  # Start of processor-specific
+        DT_HIPROC = 0x7fffffff  # End of processor-specific
+        DT_PROCNUM = 37  # Most used by any processor
+
+        DT_VALRNGLO = 0x6ffffd00
+        DT_GNU_PRELINKED = 0x6ffffdf5  # Prelinking timestamp
+        DT_GNU_CONFLICTSZ = 0x6ffffdf6  # Size of conflict section
+        DT_GNU_LIBLISTSZ = 0x6ffffdf7  # Size of library list
+        DT_CHECKSUM = 0x6ffffdf8
+        DT_PLTPADSZ = 0x6ffffdf9
+        DT_MOVEENT = 0x6ffffdfa
+        DT_MOVESZ = 0x6ffffdfb
+        DT_FEATURE_1 = 0x6ffffdfc  # Feature selection (DTF_*).
+        DT_POSFLAG_1 = 0x6ffffdfd  # Flags for DT_* entries, effecting 					   the following DT_* entry.
+        DT_SYMINSZ = 0x6ffffdfe  # Size of syminfo table (in bytes)
+        DT_SYMINENT = 0x6ffffdff  # Entry size of syminfo
+        DT_VALRNGHI = 0x6ffffdff
+
+        DT_ADDRRNGLO = 0x6ffffe00
+        DT_GNU_HASH = 0x6ffffef5  # GNU-style hash table.
+        DT_TLSDESC_PLT = 0x6ffffef6
+        DT_TLSDESC_GOT = 0x6ffffef7
+        DT_GNU_CONFLICT = 0x6ffffef8  # Start of conflict section
+        DT_GNU_LIBLIST = 0x6ffffef9  # Library list
+        DT_CONFIG = 0x6ffffefa  # Configuration information.
+        DT_DEPAUDIT = 0x6ffffefb  # Dependency auditing.
+        DT_AUDIT = 0x6ffffefc  # Object auditing.
+        DT_PLTPAD = 0x6ffffefd  # PLT padding.
+        DT_MOVETAB = 0x6ffffefe  # Move table.
+        DT_SYMINFO = 0x6ffffeff  # Syminfo table.
+        DT_ADDRRNGHI = 0x6ffffeff
+
+        DT_VERSYM = 0x6ffffff0
+        DT_RELACOUNT = 0x6ffffff9
+        DT_RELCOUNT = 0x6ffffffa
+        DT_FLAGS_1 = 0x6ffffffb  # State flags, see DF_1_* below.
+        DT_VERDEF = 0x6ffffffc  # Address of version definition table
+        DT_VERDEFNUM = 0x6ffffffd  # Number of version definitions
+        DT_VERNEED = 0x6ffffffe  # Address of table with needed versions
+        DT_VERNEEDNUM = 0x6fffffff  # Number of needed versions
+
+        DT_AUXILIARY = 0x7ffffffd  # Shared object to load before self
+        DT_FILTER = 0x7fffffff  # Shared object to get values from
+
+
 class ElfTestCase(unittest.TestCase):
 
     def setUp(self) -> None:
@@ -633,7 +749,8 @@ class ElfTestCase(unittest.TestCase):
         import os
         dirname = os.path.dirname(__file__)
         # filename = os.path.join(dirname, "../build/test.o")
-        filename = os.path.join(dirname, "../build/test")
+        # filename = os.path.join(dirname, "../build/test")
+        filename = os.path.join(dirname, "../build/test.so")
         self.file = open(filename, 'rb')
         self.shdrs = []
 
@@ -691,23 +808,19 @@ class ElfTestCase(unittest.TestCase):
                 file.seek(shdr.sh_offset)
                 shdr.data = file.read(shdr.sh_size)
 
-    def get_strdict(self, shdr):
-        nametable = shdr.data.split(b'\0')
-
-        namedict = {}
-        current = 0
-        for name in nametable:
-            namedict[current] = name.decode('utf8')
-            current += len(name) + 1
-        return namedict
+    def get_str(self, data: bytes, index) -> str:
+        end = data.find(b'\0', index)
+        if end == -1:
+            return ''
+        string = data[index:end]
+        return string.decode("utf8")
 
     def print_shdrs(self):
         strtab = self.shdrs[self.header.e_shstrndx]
-        namedict = self.get_strdict(strtab)
-
+        data = strtab.data
         for index, shdr in enumerate(self.shdrs):
             logger.info(f'section index {index}')
-            logger.info(f'section name {namedict[shdr.sh_name]}')
+            logger.info(f'section name {self.get_str(data, shdr.sh_name)}')
             logger.info(f'section type {Elf32_Shdr.SHT.get_name(shdr.sh_type)}')
             flags = set([shdr.sh_flags & (1 << var) for var in range(32)])
             logger.info(f'section flags {[Elf32_Shdr.SHF.get_name(flag) for flag in flags if flag ]}')
@@ -738,7 +851,7 @@ class ElfTestCase(unittest.TestCase):
 
         return (bind << 4) | (type & 0xf)
 
-    def print_struct(self, instance):
+    def print_struct(self, instance: BaseStructure):
         cls = type(instance)
         for name, _ in cls._fields_:
             value = getattr(instance, name)
@@ -751,24 +864,23 @@ class ElfTestCase(unittest.TestCase):
     def read_symbols(self):
         shdrs = self.shdrs
         for shdr in self.shdrs:
-            if shdr.sh_type == Elf32_Shdr.SHT.SHT_SYMTAB:
-                # logger.debug(shdr)
-                break
+            if shdr.sh_type != Elf32_Shdr.SHT.SHT_SYMTAB:
+                continue
 
-        stream = BytesIO(shdr.data)
-        stream.seek(0)
+            stream = BytesIO(shdr.data)
+            stream.seek(0)
 
-        strtab = self.shdrs[shdr.sh_link]
-        namedict = self.get_strdict(strtab)
+            strtab = self.shdrs[shdr.sh_link]
+            data = strtab.data
 
-        self.symtab = []
-        while True:
-            data = stream.read(shdr.sh_entsize)
-            if not data:
-                break
-            sym = Elf32_Sym.from_buffer_copy(data)
-            sym.name = namedict[sym.st_name]
-            self.symtab.append(sym)
+            self.symtab = []
+            while True:
+                buf = stream.read(shdr.sh_entsize)
+                if not buf:
+                    break
+                sym = Elf32_Sym.from_buffer_copy(buf)
+                sym.name = self.get_str(data, sym.st_name)
+                self.symtab.append(sym)
 
     def print_symbols(self):
         for sym in self.symtab:
@@ -861,27 +973,82 @@ class ElfTestCase(unittest.TestCase):
             flags = set([phdr.p_flags & (1 << var) for var in range(32)])
             logger.info(f'phdr flags --> {[Elf32_Phdr.PF.get_name(flag) for flag in flags if flag ]}')
             logger.info(f"phdr align --> 0x{phdr.p_align:x}")
-            logger.info(f"phdr data --> {phdr.data}")
+            # logger.info(f"phdr data --> {phdr.data}")
             self.splitter(1)
         self.splitter()
+
+    def read_dyns(self):
+        self.dyns = []
+
+        for phdr in self.phdrs:
+            if phdr.p_type != Elf32_Phdr.PT.PT_DYNAMIC:
+                continue
+            # logger.debug(phdr.data)
+
+            stream = BytesIO(phdr.data)
+            stream.seek(0)
+
+            while True:
+                data = stream.read(sizeof(Elf32_Dyn))
+                if not data:
+                    break
+                dyn = Elf32_Dyn.from_buffer_copy(data)
+                self.dyns.append(dyn)
+
+        # 经测试 .dynamic section 与 PT_DYNAMIC 的内容完全相同
+
+        # for shdr in self.shdrs:
+        #     if shdr.sh_type != Elf32_Shdr.SHT.SHT_DYNAMIC:
+        #         continue
+        #     logger.debug(shdr.data)
+
+    def print_dyns(self):
+
+        for dyn in self.dyns:
+            logger.info(f'dyn tag --> {Elf32_Dyn.DT.get_name(dyn.d_tag)}')
+            logger.info(f'dyn val 0x{dyn.d_un.d_val:x}')
+            # logger.info(f'dyn ptr 0x{dyn.d_un.d_ptr:x}')
+            self.splitter(1)
+        self.splitter()
+
+    def elf_hash(self, name: bytes):
+        h = 0
+        g = 0
+
+        index = 0
+        while len(name) < index and name[index]:
+            h = (h << 4) + name[index]
+            if g == (h & 0xf0000000):
+                h ^= g >> 24
+            h &= ~g
+            index += 1
+        return h
+
+    def read_got(self):
+        pass
 
     def test(self):
 
         self.splitter()
         self.read_header()
-        self.print_header()
+        # self.print_header()
 
         self.read_shdrs()
         # self.print_shdrs()
 
-        # self.read_symbols()
+        self.read_symbols()
         # self.print_symbols()
 
-        # self.read_rel()
-        # self.print_rel()
+        self.read_rel()
+        self.print_rel()
 
         self.read_phdrs()
-        self.print_phdrs()
+        # self.print_phdrs()
+
+        self.read_dyns()
+        # self.print_dyns()
+
+        self.read_got()
 
 
 if __name__ == '__main__':
